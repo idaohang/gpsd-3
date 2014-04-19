@@ -172,11 +172,13 @@ static pthread_mutex_t report_mutex;
 
 
 /*Patch for getting the process name of listing clients.*/
-#define ADD 0
-#define REMOVE 1
+#define REQUEST  0
+#define RESPONCE 1
 #define ACCOUNTING_PORT 40000
-int send_to_server(int type, int pid, char* process_name )
+//int send_to_server(int type, int pid, char* process_name, struct timespec *tm)
+int send_to_server(int type, unsigned short int port, struct timespec *tm)
 {
+  printf("Sending message to resource accounting server....\n");
   int sockfd = 0;
   char sendBuff[1024];
   struct sockaddr_in serv_addr;
@@ -202,12 +204,15 @@ int send_to_server(int type, int pid, char* process_name )
     printf("\n Error : Connect Failed \n");
     return -1;
   }
-  snprintf(sendBuff, sizeof(sendBuff), "%d|%d|%s", type, pid, process_name);
+  //snprintf(sendBuff, sizeof(sendBuff), "%d|%d|%s|%lld.%.9ld", type, pid, process_name,(long long)(*tm).tv_sec, (*tm).tv_nsec);
+  snprintf(sendBuff, sizeof(sendBuff), "%d|%lld.%.9ld", type, port,(long long)(*tm).tv_sec, (*tm).tv_nsec);
   write(sockfd, sendBuff, strlen(sendBuff));
-  printf("closing....\n");
+  printf("Message send to server closing the socket....\n");
   return 0;
 
 }
+
+/*
 static int get_word_len(char* data)
 {
   int i =0;
@@ -241,13 +246,16 @@ static char* get_process_name(char* data){
     }
     return res;
 }
-
+*/
+/*
 static int patch_main(uint16_t port, int std_out_fd){
     char command[PATH_MAX],error_str[PATH_MAX];
     int fd,std_fd_old=1,std_fd_new;
     int pagesize,i;
     char* data=NULL,*pname;
-
+    struct timespec tm;
+    clock_gettime(CLOCK_MONOTONIC, &tm);
+    printf("In path main time:%lld.%.9ld",(long long) tm.tv_sec, tm.tv_nsec);
     sprintf(command,"lsof -i :%d",port);
     write(std_out_fd,command,PATH_MAX);
 
@@ -291,14 +299,16 @@ static int patch_main(uint16_t port, int std_out_fd){
    // This is not good logic to get application name - need better one
     pname = get_process_name(&data[i]);
     int len = get_word_len(&data[i]);
-    if(send_to_server(ADD,0,  pname) < 0)
+    if(send_to_server(ADD, port, &tm) < 0)
     {
       printf("\n Error while communication to Accounting demon\n");
     }
 
     munmap(data,pagesize);
+    */
     /*Now reverse to orginal mapping*/
-    if((dup2(std_fd_new,std_fd_old)==-1)){
+/*
+  if((dup2(std_fd_new,std_fd_old)==-1)){
 	printf("error in reversing fd:%s\n",strerror(errno));
 	return -1;
     }
@@ -313,7 +323,7 @@ static int patch_main(uint16_t port, int std_out_fd){
     return 0;
 }
 
-
+*/
 
 static void visibilize(/*@out@*/char *buf2, size_t len, const char *buf)
 {
@@ -759,13 +769,17 @@ static void notify_watchers(struct gps_device_t *device, const char *sentence, .
     va_list ap;
     char buf[BUFSIZ];
     struct subscriber_t *sub;
-    //add here- Amit
+    /*add here- Amit
     //
+    struct timespec tm;
+    clock_gettime(CLOCK_MONOTONIC, &tm);
+    printf("Timestamp:%lld.%.9ld", (long long)tm.tv_sec, tm.tv_nsec);
     char *pname = "all process";
-    if(send_to_server(REMOVE, 0, pname) < 0)
+    if(send_to_server(REMOVE, 0, pname, &tm) < 0)
     {
       printf("Error while sending to server \n");
     }
+    */
     va_start(ap, sentence);
     (void)vsnprintf(buf, sizeof(buf), sentence, ap);
     va_end(ap);
@@ -2289,8 +2303,11 @@ int main(int argc, char *argv[])
 		int ssock =
 		    accept(msocks[i], (struct sockaddr *)&fsin, &alen);
 		port = ntohs(((struct sockaddr_in *)&fsin)->sin_port);
-		
-		patch_main(port,1);
+	
+    struct timespec request, responce;
+		//patch_main(port,1);
+    clock_gettime(CLOCK_MONOTONIC, &request);
+    send_to_server(REQUEST, port, &request);
 
 		/*@+matchanyintegral@*/
 
@@ -2330,6 +2347,9 @@ int main(int argc, char *argv[])
 			json_version_dump(announce, sizeof(announce));
 			(void)throttled_write(client, announce,
 					      strlen(announce));
+          printf("Client notified of the data\n");
+          clock_gettime(CLOCK_MONOTONIC, &responce);
+          send_to_server(RESPONCE, port, &responce);
 		    }
 		}
 		FD_CLR(msocks[i], &rfds);
