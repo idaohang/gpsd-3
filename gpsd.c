@@ -176,7 +176,7 @@ static pthread_mutex_t report_mutex;
 #define RESPONCE 1
 #define ACCOUNTING_PORT 40000
 //int send_to_server(int type, int pid, char* process_name, struct timespec *tm)
-int send_to_server(int type, unsigned short int port, struct timespec *tm)
+int send_to_server(int type, uint16_t port, struct timespec *tm)
 {
   printf("Sending message to resource accounting server....\n");
   int sockfd = 0;
@@ -205,7 +205,7 @@ int send_to_server(int type, unsigned short int port, struct timespec *tm)
     return -1;
   }
   //snprintf(sendBuff, sizeof(sendBuff), "%d|%d|%s|%lld.%.9ld", type, pid, process_name,(long long)(*tm).tv_sec, (*tm).tv_nsec);
-  snprintf(sendBuff, sizeof(sendBuff), "%d|%lld.%.9ld", type, port,(long long)(*tm).tv_sec, (*tm).tv_nsec);
+  snprintf(sendBuff, sizeof(sendBuff), "%d|%d|%lld.%.9ld", type, port,(long long)(*tm).tv_sec, (*tm).tv_nsec);
   write(sockfd, sendBuff, strlen(sendBuff));
   printf("Message send to server closing the socket....\n");
   return 0;
